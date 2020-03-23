@@ -1,9 +1,18 @@
 # deep-geometric-pathway
 
- ## Genomic graph-learning LOG
- 
+## Genomic graph-learning LOG
 
 #### March 23rd
+
+1. Implement `regression_hops_sampler()` function. The function can return an always $1$ batch size object loader. The `return` serves for the regression training without considering the geometric structure, but each training set of loader does from the `num_hops`. So, it is kind of fair for further geometric pathway training.  (**DONE**)
+
+Example:
+
+See detail is `./regression_hop_sampler.ipynb`
+
+
+
+####March 22nd
 
 1. Implement `cancer_data()` function, which operates the `Breast Caner` data in `./BreastCancer/Data_RNASeq2.mat` (**DONE**)
 2. Implement `hops_sampler()` function that sample the overall *genomeic/pathway* info and return the `dataloader` in specific `batch_size` required. (**DONE**)
@@ -14,8 +23,8 @@ The detailed example is available in `./test_notebook/` and `./sampler_test.ipyn
 
 
 
-#### March 22nd
- 
+#### March 21st
+
  1. The pure text raw data `./GenomicData/Gene_DATA/sourcePathway.txt` processed method (**DONE**)
  2. The utility method `data_fetch()` class has been **DONE** 
  3. `data_fetch` is able to exclude the node type that is no necessary wanted
