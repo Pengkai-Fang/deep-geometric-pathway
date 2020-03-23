@@ -6,7 +6,7 @@
  
  #### March 22nd
  
- 1. The pure text raw data ``./GenomicData/Gene_DATA/sourcePathway.txt` processed method (**DONE**)
+ 1. The pure text raw data `./GenomicData/Gene_DATA/sourcePathway.txt` processed method (**DONE**)
  2. The utility method `data_fetch()` class has been **DONE** 
  3. `data_fetch` is able to exclude the node type that is no necessary wanted
  
