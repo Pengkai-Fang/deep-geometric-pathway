@@ -16,7 +16,7 @@ See detail is `./regression_hop_sampler.ipynb` ,`./pathway_LassoCV.ipynb`. Also 
 
 
 
-####March 22nd
+#### March 22nd
 
 1. Implement `cancer_data()` function, which operates the `Breast Caner` data in `./BreastCancer/Data_RNASeq2.mat` (**DONE**)
 2. Implement `hops_sampler()` function that sample the overall *genomeic/pathway* info and return the `dataloader` in specific `batch_size` required. (**DONE**)
