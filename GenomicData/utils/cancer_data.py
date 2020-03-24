@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder
 from .data_fetch import data_fetch
+from sklearn.preprocessing import MinMaxScaler
 
 
 class cancer_data():
@@ -39,6 +40,14 @@ class cancer_data():
         self.geneNamelist = raw_data['gNamePureListRNASeq2'][0]
         self.activ_free = raw_data['geneRNASeq2RawMatrix0']
         self.activ_cancer = raw_data['geneRNASeq2RawMatrix1']
+        
+        # Normalize data
+        scaler = MinMaxScaler()
+        temp_concat = np.concatenate([self.activ_free, self.activ_cancer], axis=1)
+        scaler.fit(temp_concat.T)
+        temp_concat = scaler.transform(temp_concat.T).T
+        self.activ_free = temp_concat[:,:self.activ_free.shape[1]]
+        self.activ_cancer = temp_concat[:,self.activ_free.shape[1]:]
         
         self.protein_list = self.pthway.Namelist
         

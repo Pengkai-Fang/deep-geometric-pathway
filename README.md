@@ -5,12 +5,14 @@
 #### March 23rd
 
 1. Implement `regression_hops_sampler()` function. The function can return an always $1$ batch size object loader. The `return` serves for the regression training without considering the geometric structure, but each training set of loader does from the `num_hops`. So, it is kind of fair for further geometric pathway training.  (**DONE**)
+2. Normalized the data, fixed the possible $NAN$ issue
+3. Implemented the `pathway_LassoCV.py` to compute the regression, all the plot results are shown as GROUND TRUTH vs PREDICTION. They are in `./results/Lasso` folder 
 
 Example:
 
-See detail is `./regression_hop_sampler.ipynb`
+See detail is `./regression_hop_sampler.ipynb` ,`./pathway_LassoCV.ipynb`. Also some results figures:
 
-
+ [['ABL1'].pdf](GenomicData/results/Lasso/['ABL1'].pdf)  [['APAF1'].pdf](GenomicData/results/Lasso/['APAF1'].pdf) 
 
 ####March 22nd
 
