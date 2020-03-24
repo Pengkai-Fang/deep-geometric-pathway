@@ -10,9 +10,7 @@
 
 Example:
 
-See detail is `./regression_hop_sampler.ipynb` ,`./pathway_LassoCV.ipynb`. Also some results figures:
-
- [['ABL1'].pdf](GenomicData/results/Lasso/['ABL1'].pdf)  [['APAF1'].pdf](GenomicData/results/Lasso/['APAF1'].pdf) 
+See detail is `./regression_hop_sampler.ipynb` ,`./pathway_LassoCV.ipynb`. Also some results figures: [['ABL1'].pdf](GenomicData/results/Lasso/['ABL1'].pdf)  [['APAF1'].pdf](GenomicData/results/Lasso/['APAF1'].pdf) 
 
 
 
