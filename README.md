@@ -2,6 +2,12 @@
 
 ## Genomic graph-learning LOG
 
+#### March 24th
+
+1. Implemented the `RidgeCV` with previous `pathway_Lasso` . The results are shown in `./results/Ridge`
+
+
+
 #### March 23rd
 
 1. Implement `regression_hops_sampler()` function. The function can return an always $1$ batch size object loader. The `return` serves for the regression training without considering the geometric structure, but each training set of loader does from the `num_hops`. So, it is kind of fair for further geometric pathway training.  (**DONE**)
