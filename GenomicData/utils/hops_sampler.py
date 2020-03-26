@@ -66,12 +66,24 @@ class hops_sampler(object):
         This function passes batch index number to obtained trained object
         """
         deep_pthway = Data()
+        deep_pthway.batch = batch
+        
+        # find out the edge_index of original pathway index
+        row, col = self.edge_index
+        row = list(row)
+        col = list(col)
+        exclude_list = []
+        for idx, (a, b) in enumerate(zip(row,col)):
+            if ((a not in list(batch)) or (b not in list(batch))):
+                exclude_list.append(idx)
+        deep_pthway.edge_index_oriIndexxed = np.delete(self.edge_index, exclude_list, 1)
+        
         newpthway_Namelist = self.data.pthway_NameList.iloc[batch,:].reset_index(drop=True)
         deep_pthway.genome_Namelist = newpthway_Namelist[newpthway_Namelist['GenomeType'] == 'protein']['GenomeName'].values
         activ_id = le.transform(deep_pthway.genome_Namelist)
         deep_pthway.activ_free = self.data.activ_free[activ_id]
         deep_pthway.activ_cancer = self.data.activ_cancer[activ_id]
-
+        
         deep_pthway.pth_Namelist = newpthway_Namelist
         Edgelist = self.data.Edgelist
         Namelist_l = list(newpthway_Namelist['GenomeName'].values)

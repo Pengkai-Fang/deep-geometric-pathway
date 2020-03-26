@@ -2,11 +2,22 @@
 
 ## Genomic graph-learning LOG
 
+#### March 25th
+
+1. Implemented the `Node2vec` Embedding method to obatin the feature of the pathway-graph
+2. The saved embedding manifold representation is [node2vec_embed.pdf](GenomicData/results/node2vec-embedding/March-25th/node2vec_embed.pdf) . For now, the embedding is not sparse.
+3. The `node2vec` method is in file `.node2vec_feature_represenation.iphb`
+4. Added folder `./model` to save the `.pth` model parameters
+
+
+
 #### March 24th
 
 1. Implemented the `RidgeCV` with previous `pathway_Lasso` . The results are shown in `./results/Ridge`
 
+2. Learned the `Node2Vec` embedding strategy
 
+   
 
 #### March 23rd
 
