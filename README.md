@@ -2,7 +2,30 @@
 
 ## Genomic graph-learning LOG
 
-#### March 25th
+#### March 26th
+
+1. Update the `utils.hop_sampler()` to be able to handle the `DataFlow` structure.
+2. The sample method will return a flow way to train the data or train the sample once for all
+3. Be able to **visualize** the dataflow of each sample, and handle the *batch_size* 
+4. `hops_sampler` added `label_all` option, default is `False` , which allows the class compute the overall relabeled every node and edge.
+
+Example: The following is some `dataflow` visualization in case of sample hops is `5`. 
+
+Note: The results below miss one flow for each data flow. **FIXED**
+
+```reStructuredText
+ Data(dataflow=[5], property=DataFlow(3 <- 20 <- 172 <- 727 <- 2720), size_list=[6]),
+ Data(dataflow=[5], property=DataFlow(3 <- 61 <- 431 <- 1946 <- 4938), size_list=[6]),
+ Data(dataflow=[5], property=DataFlow(3 <- 29 <- 218 <- 1210 <- 4184), size_list=[6]),
+ Data(dataflow=[5], property=DataFlow(3 <- 21 <- 200 <- 1151 <- 3873), size_list=[6]),
+ Data(dataflow=[5], property=DataFlow(3 <- 46 <- 316 <- 1620 <- 4866), size_list=[6]),
+ Data(dataflow=[5], property=DataFlow(3 <- 24 <- 187 <- 1276 <- 4455), size_list=[6]),
+ Data(dataflow=[5], property=DataFlow(3 <- 33 <- 185 <- 794 <- 2711), size_list=[6]),
+```
+
+
+
+####  March 25th
 
 1. Implemented the `Node2vec` Embedding method to pre-train the feature of the pathway-graph
 2. The saved embedding manifold representation is [node2vec_embed.pdf](GenomicData/results/node2vec-embedding/March-25th/node2vec_embed.pdf) . For now, the embedding is not sparse.

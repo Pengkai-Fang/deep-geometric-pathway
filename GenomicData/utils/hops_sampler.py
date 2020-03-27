@@ -16,7 +16,7 @@ class hops_sampler(object):
     Return: `hops_samples`: the loader of sub-graph
     
     """
-    def __init__(self, pathway, num_hops, batch_size, least_size=5):
+    def __init__(self, pathway, num_hops, batch_size, least_size=5, label_all=False):
         self.data = pathway
         self.num_hops = num_hops
         self.batch_size = batch_size
@@ -30,8 +30,9 @@ class hops_sampler(object):
         le = LabelEncoder()
         le.fit(self.data.remained_protein)
         
-        for sub_batch in self.batched_node_list:
-            self.hops_samples.append(self.sampler_generater(sub_batch, le))
+        if label_all:
+            for sub_batch in self.batched_node_list:
+                self.hops_samples.append(self.sampler_generater(sub_batch, le))
         
     def _setup(self):
         # Create deep_geometric data object
@@ -47,19 +48,45 @@ class hops_sampler(object):
             level_node = np.setdiff1d(level_node, elem)
             self.save_ids.append(elem) if level_node.size > self.least_size  else self.save_ids
             
-        
+    def relabel_edge(self, edge_index_ori, nodes_index):
+        # The function relabel the original indexxed edge to be simple 0~num-1 index
+        if np.all(np.isin(edge_index_ori, nodes_index)) is False:
+            raise IndexError("The edge_index in not in the nodes_index, it is not able to relabel the edge.\n")
+        le = LabelEncoder()
+        le.fit(nodes_index)
+        return le.transform(edge_index_ori.reshape(-1)).reshape(2,-1)
+    
     def _splits(self):
         # Start from here is the test of sub-sampling linkage based on num of hops
         # First, split the started node into desgined batch_size
         self.batch_splits = torch.split(torch.tensor(self.save_ids), self.batch_size)
         # function that find all parent hops
         self.batched_node_list = []
+        self.samples = []
         for batch in self.batch_splits:
             # the ids i want to keep in further sub-sampling part
             this_batch_ids = batch.numpy()
+            temp = batch.numpy()
+            subset = Data()
+            subset.dataflow = []
             for num in range(self.num_hops):
+                # Create dataflow structure
+                block = Data()
+                block.res_n_id = temp
+                link_indice = np.in1d(self.node_j, temp)
+                block.edge_index_ori = self.edge_index[:,link_indice]               
+                temp = self.node_i[link_indice]
+                block.n_id = temp
+                block.edge_index = self.relabel_edge(block.edge_index_ori, np.hstack([block.n_id, block.res_n_id]))
+                subset.dataflow.append(block)
+                
+                # overall variable
                 this_batch_ids = np.hstack([this_batch_ids, self.node_i[np.in1d(self.node_j, this_batch_ids)]])
             self.batched_node_list.append(np.unique(this_batch_ids))
+            subset.size_list = [len(obj.res_n_id) for obj in subset.dataflow]
+            subset.size_list.append(len(subset.dataflow[-1].n_id))
+            subset.property = ("DataFlow({}".format("{} <- "*(self.num_hops)) + "{})").format(*subset.size_list)
+            self.samples.append(subset)
         
     def sampler_generater(self, batch, le):
         """
