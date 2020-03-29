@@ -9,9 +9,7 @@
 1. Add `skip_link` option for `data_fetch()` function in order to realize the skip link in some situations instead of deleting every links that conncets to unwanted node type. For now, the `skip_link` is only work for `abstract` and `rna`. 
 2. Add $R^2$ score computation of regression results. Updated the code in `pathway_Lasso_w_Ridge.ipynb`. 
 
-$R^2$ is defined as: 
-$$R^2 = 1 - {\sum(y_{pred} - y_{true})^2 \over \sum(y_{true} - \bar{y_{true}})^2}$$
-, the best situation is that $R^2 = 1$ 
+$R^2$ is defined as: $R^2 = 1 - {\sum(y_{pred} - y_{true})^2 \over \sum(y_{true} - \bar{y_{true}})^2}$, the best situation is that $R^2 = 1$ 
 
 #### March 27th
 
