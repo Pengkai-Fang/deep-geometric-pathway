@@ -2,6 +2,26 @@
 
 ## Genomic graph-learning LOG
 
+
+
+#### March 28th
+
+1. Add `skip_link` option for `data_fetch()` function in order to realize the skip link in some situations instead of deleting every links that conncets to unwanted node type. For now, the `skip_link` is only work for `abstract` and `rna`. 
+2. Add $R^2$ score computation of regression results. Updated the code in `pathway_Lasso_w_Ridge.ipynb`. 
+
+$R^2$ is defined as: $R^2 = 1 - {\sum(y_{pred} - y_{true})^2 \over \sum(y_{true} - \bar{y_{true}})^2}$ , the best situation is that $R^2 = 1$ 
+
+#### March 27th
+
+**TODO**
+
+1. visualize the sampled pathway compared to the .m code
+2. ~~show average consistency for regrssion~~ ( **DONE** )
+3. verify the pathway input with different parameter setting
+4. ~~when exlcude the linkage type, do we get rid of the rest remained linkage type that connected~~ ( **DONE** )
+
+
+
 #### March 26th
 
 1. Update the `utils.hop_sampler()` to be able to handle the `DataFlow` structure.
