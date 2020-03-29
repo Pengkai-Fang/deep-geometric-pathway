@@ -15,7 +15,7 @@ $R^2$ is defined as: $R^2 = 1 - {\sum(y_{pred} - y_{true})^2 \over \sum(y_{true}
 
 The following is the idea of the option `skip_link = True`, when we want to exclude `abstract` and `rna`
 
-![link_skip](/Users/zaoyichi/Documents/pathy-way-genome/deep-geometric-pathway/GenomicData/readme-figs/link_skip.png)
+![link_skip](https://github.com/Zaoyee/deep-geometric-pathway/blob/master/GenomicData/readme-figs/link_skip.png)
 
 #### March 27th
 
