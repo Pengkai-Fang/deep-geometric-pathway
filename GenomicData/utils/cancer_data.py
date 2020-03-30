@@ -110,7 +110,7 @@ class cancer_data():
         # Start to index label
         self.pthway_NameList = self.pthway_NameList.sort_values(by='GenomeName').reset_index(drop=True)
         # There are some fucking duplicated data !!!!!! FUCK, TAKE ME SO MUCH TIME TO FIND OUT
-        self.pthway_NameList = self.pthway_NameList[~self.pthway_NameList.duplicated()]
+        self.pthway_NameList = self.pthway_NameList[~self.pthway_NameList.duplicated()].reset_index(drop=True)
         
         le = LabelEncoder()
         le.fit(self.pthway_NameList['GenomeName'].values)

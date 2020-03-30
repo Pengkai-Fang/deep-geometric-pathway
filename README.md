@@ -2,6 +2,12 @@
 
 ## Genomic graph-learning LOG
 
+#### March 29th
+
+1. Add `utils.visualize.show_pth()` function, that is able to print out the specific sampled pathway
+
+   The detail of how to use this function is in `./test_notebook/visualize.ipynb`
+
 
 
 #### March 28th

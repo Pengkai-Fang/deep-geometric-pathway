@@ -65,9 +65,9 @@ class hops_sampler(object):
         self.samples = []
         for batch in self.batch_splits:
             # the ids i want to keep in further sub-sampling part
-            this_batch_ids = batch.numpy()
-            temp = batch.numpy()
             subset = Data()
+            subset.this_batch_ids = batch.numpy()
+            temp = batch.numpy()
             subset.dataflow = []
             for num in range(self.num_hops):
                 # Create dataflow structure
@@ -81,8 +81,8 @@ class hops_sampler(object):
                 subset.dataflow.append(block)
                 
                 # overall variable
-                this_batch_ids = np.hstack([this_batch_ids, self.node_i[np.in1d(self.node_j, this_batch_ids)]])
-            self.batched_node_list.append(np.unique(this_batch_ids))
+                subset.this_batch_ids = np.hstack([subset.this_batch_ids, self.node_i[np.in1d(self.node_j, subset.this_batch_ids)]])
+            self.batched_node_list.append(np.unique(subset.this_batch_ids))
             subset.size_list = [len(obj.res_n_id) for obj in subset.dataflow]
             subset.size_list.append(len(subset.dataflow[-1].n_id))
             subset.property = ("DataFlow({}".format("{} <- "*(self.num_hops)) + "{})").format(*subset.size_list)
