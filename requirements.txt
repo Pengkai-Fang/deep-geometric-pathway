@@ -1,0 +1,9 @@
+numpy
+pandas
+matplotlib
+torch 
+torchvision
+scikit-learn
+torch-geometric
+torch-cluster==latest+cpu -f https://pytorch-geometric.com/whl/torch-1.4.0.html
+networkx
