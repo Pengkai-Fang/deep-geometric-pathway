@@ -2,7 +2,8 @@ import torch
 from torch.nn import Parameter
 import torch.nn.functional as F
 from .message_passing import MessagePassing
-from torch_geometric.utils import remove_self_loops, add_self_loops, softmax
+from torch_geometric.utils import remove_self_loops, add_self_loops
+from .softmax import softmax
 
 from .inits import glorot, zeros
 
