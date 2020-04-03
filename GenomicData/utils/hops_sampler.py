@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 from torch_geometric.data import Data
 from sklearn.preprocessing import LabelEncoder
+import torch
 
 class hops_sampler(object):
     """
@@ -22,6 +23,7 @@ class hops_sampler(object):
         self.batch_size = batch_size
         self.least_size = least_size
         self.hops_samples = []
+        self.device = 'cpu' if torch.cuda.is_available() else 'cpu'
         
         self._setup()
         self._splits()
@@ -41,24 +43,48 @@ class hops_sampler(object):
         # the remained id that does have at least one hop
         # Based on computation, we only have 1435 protein nodes satisfy the requirement
         self.save_ids = []
-        self.edge_index = edge_index
+        self.edge_index = np.unique(self._add_selfLoop(edge_index), axis=1)
         self.node_i, self.node_j = self.edge_index
         for elem in self.data.remained_protein_id:
             level_node = self.node_i[np.in1d(self.node_j, elem)]
             level_node = np.setdiff1d(level_node, elem)
             self.save_ids.append(elem) if level_node.size > self.least_size  else self.save_ids
-            
+
+    def _add_selfLoop(self, edge_index):
+        num_node = np.max(edge_index) + 1
+        temp = np.vstack([np.arange(num_node)]*2)
+        edge_index = np.concatenate([edge_index, temp],axis=1)
+        return edge_index
+
     def relabel_edge(self, edge_index_ori, nodes_index):
         # The function relabel the original indexxed edge to be simple 0~num-1 index
+
+        #--------------------------------------------------------------------------------------------
+        # NOTE: REMODIFIED THIS FUNCTION TO MAKE THE edge_index_j starts always from 0 to the num_j-1
+        #--------------------------------------------------------------------------------------------
         if np.all(np.isin(edge_index_ori, nodes_index)) is False:
             raise IndexError("The edge_index in not in the nodes_index, it is not able to relabel the edge.\n")
-        le = LabelEncoder()
-        le.fit(nodes_index)
-        return le.transform(edge_index_ori.reshape(-1)).reshape(2,-1)
+
+        # create a dictionary
+        edge_i, edge_j = edge_index_ori
+        n_ids = np.unique(edge_i)
+        res_n = np.unique(edge_j)
+        table_n_ids = {elem: idx for idx, elem in enumerate(n_ids)}
+        table_res_n = {elem:idx for idx, elem in enumerate(res_n)}
+
+        new_edge_i = np.array([table_n_ids.get(elem) for elem in edge_i])[np.newaxis,:]
+        new_edge_j = np.array([table_res_n.get(elem) for elem in edge_j])[np.newaxis,:]
+
+        return np.concatenate([new_edge_i,new_edge_j], axis=0)
     
     def _splits(self):
+        #---------------------------------------------------------------------------------------
+        ## Ver 3.0 Modify the sampling method from big sample to smaller sample step by step,
+        # in the end we get the middle one
+        #---------------------------------------------------------------------------------------
+
         # Start from here is the test of sub-sampling linkage based on num of hops
-        # First, split the started node into desgined batch_size
+        # First, split the started node into desired batch_size
         self.batch_splits = torch.split(torch.tensor(self.save_ids), self.batch_size)
         # function that find all parent hops
         self.batched_node_list = []
@@ -66,26 +92,47 @@ class hops_sampler(object):
         for batch in self.batch_splits:
             # the ids i want to keep in further sub-sampling part
             subset = Data()
+            # get numpy final samples
+            subset.target = batch.numpy()
             subset.this_batch_ids = batch.numpy()
             temp = batch.numpy()
             subset.dataflow = []
+            subset.edge_index_t = []
             for num in range(self.num_hops):
-                # Create dataflow structure
-                block = Data()
-                block.res_n_id = temp
-                link_indice = np.in1d(self.node_j, temp)
-                block.edge_index_ori = self.edge_index[:,link_indice]               
-                temp = self.node_i[link_indice]
-                block.n_id = temp
-                block.edge_index = self.relabel_edge(block.edge_index_ori, np.hstack([block.n_id, block.res_n_id]))
-                subset.dataflow.append(block)
-                
-                # overall variable
                 subset.this_batch_ids = np.hstack([subset.this_batch_ids, self.node_i[np.in1d(self.node_j, subset.this_batch_ids)]])
-            self.batched_node_list.append(np.unique(subset.this_batch_ids))
-            subset.size_list = [len(obj.res_n_id) for obj in subset.dataflow]
-            subset.size_list.append(len(subset.dataflow[-1].n_id))
-            subset.property = ("DataFlow({}".format("{} <- "*(self.num_hops)) + "{})").format(*subset.size_list)
+                edge_indice = np.in1d(self.node_j, temp)
+                temp = self.node_i[edge_indice]
+                if num == 0:
+                    this_edge_index = self.edge_index[:,edge_indice]
+                else:
+                    this_edge_index = np.unique(np.concatenate([this_edge_index, self.edge_index[:,edge_indice]],
+                                                               axis=1), axis=1)
+                subset.edge_index_t.append(this_edge_index)
+
+            subset.edge_index_t = subset.edge_index_t[::-1]
+            for idx, elem in enumerate(subset.edge_index_t):
+                block = Data()
+                # Assign original edge_index
+                block.edge_index_ori = elem[:,elem[1].argsort()]
+
+                # Assign the n_id, and res_n_id
+                block.n_id, block.res_n_id = elem
+                block.n_id = np.unique(block.n_id)
+                block.res_n_id = np.unique(block.res_n_id)
+
+                block.edge_index = torch.from_numpy(self.relabel_edge(block.edge_index_ori, np.hstack([block.n_id, block.res_n_id]))).long().to(self.device)
+                all_index_list = np.unique(block.edge_index_ori.reshape(-1))
+                alllist_table = {elem:idx for idx,elem in enumerate(all_index_list)}
+                block.res_n_id = [alllist_table.get(elem) for elem in block.res_n_id]
+                block.size = (len(block.n_id), len(block.res_n_id))
+                subset.dataflow.append(block)
+
+            del subset.edge_index_t
+            subset.this_batch_ids = np.unique(subset.this_batch_ids)
+            self.batched_node_list.append(subset.this_batch_ids)
+            subset.size_list = [len(obj.n_id) for obj in subset.dataflow]
+            subset.size_list.append(len(subset.dataflow[-1].res_n_id))
+            subset.property = ("DataFlow({}".format("{} -> "*(self.num_hops)) + "{})").format(*subset.size_list)
             self.samples.append(subset)
         
     def sampler_generater(self, batch, le):
