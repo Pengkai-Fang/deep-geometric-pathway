@@ -22,6 +22,7 @@ The graph-learning is better than LASSO prediction. Also, the R^2 score is 0.68,
 
 ![graph-learning](https://github.com/Zaoyee/deep-geometric-pathway/blob/master/GenomicData/results/Graph-conv/%5B'ABL1'%5D.png)
 
+Lasso:
 
 ![LASSO](https://github.com/Zaoyee/deep-geometric-pathway/blob/master/GenomicData/results/Lasso/%5B'ABL1'%5D.pdf)
 
