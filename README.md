@@ -5,10 +5,24 @@
 
 #### **TODO**
 
-1. Figure out the same input for LASSO, check out the result
-2. Modify the model
+1. ~~Figure out the same input for LASSO, check out the result~~
+2. ~~Modify the model~~
 3. Try modify the GraphSAGE, and try the results
 
+
+#### April 1th-5th
+
+1. Add graph-convoluational related files in folder `./model`
+2. Implemented *GATGraph* based pathway inductive learning
+3. Get the first graph learning result stored in `./results/Graph-conv/`
+4. Redo the inductive sampling method. Now, the sampling is still based on the number of hops. However, the dataflow is from the big-global to the wanted predicted node step by step.
+5. The main code is stored `./inductive-learning.py`
+
+The graph-learning is better than LASSO prediction. Also, the R^2 score is 0.68, 0.65 for cancer free and cancer obtained patients. The both R^2 score is higher than LASSO prediction.
+
+![graph-learning](https://github.com/Zaoyee/deep-geometric-pathway/blob/master/GenomicData/results/Graph-conv/%5B'ABL1'%5D.png)
+
+![LASSO](https://github.com/Zaoyee/deep-geometric-pathway/blob/master/GenomicData/results/Lasso/%5B'ABL1'%5D.pdf)
 
 
 #### March 29th
