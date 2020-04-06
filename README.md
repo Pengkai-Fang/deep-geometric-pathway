@@ -2,6 +2,15 @@
 
 ## Genomic graph-learning LOG
 
+
+#### **TODO**
+
+1. Figure out the same input for LASSO, check out the result
+2. Modify the model
+3. Try modify the GraphSAGE, and try the results
+
+
+
 #### March 29th
 
 1. Add `utils.visualize.show_pth()` function, that is able to print out the specific sampled pathway

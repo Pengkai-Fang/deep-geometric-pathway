@@ -23,7 +23,7 @@ class hops_sampler(object):
         self.batch_size = batch_size
         self.least_size = least_size
         self.hops_samples = []
-        self.device = 'cpu' if torch.cuda.is_available() else 'cpu'
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         
         self._setup()
         self._splits()
