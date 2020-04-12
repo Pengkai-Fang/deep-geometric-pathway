@@ -76,7 +76,8 @@ class hops_sampler(object):
         new_edge_j = np.array([table_res_n.get(elem) for elem in edge_j])[np.newaxis,:]
 
         return np.concatenate([new_edge_i,new_edge_j], axis=0)
-    
+
+
     def _splits(self):
         #---------------------------------------------------------------------------------------
         ## Ver 3.0 Modify the sampling method from big sample to smaller sample step by step,
@@ -98,6 +99,8 @@ class hops_sampler(object):
             temp = batch.numpy()
             subset.dataflow = []
             subset.edge_index_t = []
+            # Get the edge_index layer by layer
+            # Test on 1 more hops everytimes
             for num in range(self.num_hops):
                 subset.this_batch_ids = np.hstack([subset.this_batch_ids, self.node_i[np.in1d(self.node_j, subset.this_batch_ids)]])
                 edge_indice = np.in1d(self.node_j, temp)
@@ -110,6 +113,21 @@ class hops_sampler(object):
                 subset.edge_index_t.append(this_edge_index)
 
             subset.edge_index_t = subset.edge_index_t[::-1]
+
+            #-------------------------------------------------
+            # overall propagation
+            #-------------------------------------------------
+            glb_edge_idx = subset.edge_index_t[0]
+            block = Data()
+            block.n_id = np.unique(glb_edge_idx.reshape(-1))
+            block.edge_index_ori = np.unique(np.concatenate([glb_edge_idx, np.vstack([block.n_id]*2)], axis=-1), axis=1)
+            alllist_table = {elem: idx for idx, elem in enumerate(block.n_id)}
+            node_i = np.array([alllist_table.get(elem) for elem in block.edge_index_ori[0]])
+            node_j = np.array([alllist_table.get(elem) for elem in block.edge_index_ori[1]])
+            block.edge_index = torch.from_numpy(np.vstack([node_i,node_j])).long().to(self.device)
+            subset.dataflow.append(block)
+            #-------------------DONE overall propagation-------------
+
             for idx, elem in enumerate(subset.edge_index_t):
                 block = Data()
                 # Assign original edge_index
@@ -127,7 +145,6 @@ class hops_sampler(object):
                 block.size = (len(block.n_id), len(block.res_n_id))
                 subset.dataflow.append(block)
 
-            del subset.edge_index_t
             subset.this_batch_ids = np.unique(subset.this_batch_ids)
             self.batched_node_list.append(subset.this_batch_ids)
             subset.size_list = [len(obj.n_id) for obj in subset.dataflow]

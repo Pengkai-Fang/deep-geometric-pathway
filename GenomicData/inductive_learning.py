@@ -24,30 +24,32 @@ hops_samples_obj = hops_sampler.hops_sampler(pathway=data,
                                              num_hops=2)
 
 
-
 class GATNet(nn.Module):
     def __init__(self, in_channels, out_channels):
         super(GATNet, self).__init__()
-        self.conv1 = GATConv(in_channels, 128, heads=12, node_dim=1)
-        # self.conv2 = GATConv(16 * 6, 128, heads=6, node_dim=1)
-        self.conv3 = GATConv(128*12 , 1, heads=1, node_dim=1, concat=True)
+
+        self.conv1 = GATConv(in_channels, 16, heads=1, node_dim=1)
+        self.conv2 = GATConv(16, 32, heads=1, node_dim=1)
+        self.conv3 = GATConv(32, 128, heads=12, node_dim=1)
+        self.conv4 = GATConv(128*12, out_channels, heads=1, node_dim=1, concat=True)
 
     def forward(self, x, dataflow):
         block = dataflow[0]
-        xt = x[:, block.n_id,:]
+        xt = x[:,block.n_id,:]
         xt = F.relu(
-            self.conv1((xt, xt[:, block.res_n_id, :]),
+            self.conv1(xt, block.edge_index)
+        )
+        xt = F.relu(
+            self.conv2(xt, block.edge_index)
+        )
+        block = dataflow[1]
+        xt = F.relu(
+            self.conv3((xt, xt[:, block.res_n_id, :]),
                        block.edge_index,
                        size=block.size))
 
-        block = dataflow[1]
-        # xt = F.relu(self.conv2((xt, xt[:, block.res_n_id, :]),
-        #                 block.edge_index,
-        #                 size=block.size))
-        #
-        #
-        # block = dataflow[2]
-        xt = self.conv3((xt, xt[:, block.res_n_id, :]),
+        block = dataflow[2]
+        xt = self.conv4((xt, xt[:, block.res_n_id, :]),
                         block.edge_index,
                         size=block.size)
         return xt
@@ -73,13 +75,17 @@ cancer_x_patient_all = scatter(num_nodes, cancer_x_patient, genome_idxs, pre_emb
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 model = GATNet(1, 1).to(device)
 criterion = nn.MSELoss()
-optimizer = optim.Adam(model.parameters(), lr=0.04)
+optimizer = optim.Adam(model.parameters(), lr=0.01)
 
 # define the permutation here
 all_patients  = np.concatenate([free_x_patient_all, cancer_x_patient_all], axis=0)
 class_patients = np.hstack([np.zeros(free_x_patient.shape[0]), np.ones(cancer_x_patient.shape[0])])
 permutation_idx = np.random.permutation(all_patients.shape[0])
 all_patients, class_patients = all_patients[permutation_idx], class_patients[permutation_idx]
+
+# overall edge_index
+edge_index = torch.from_numpy(hops_samples_obj.edge_index).long().to(device)
+
 # generate cv
 cv = 5
 splits_id = np.hstack([np.hstack([np.arange(cv)]*int(np.floor(all_patients.shape[0] / cv))),
@@ -97,7 +103,11 @@ def data_splits(samples, idx, test_idx, splits_id, all_patients, class_patients)
     flow.x = torch.from_numpy(all_patients)
     flow.y = torch.from_numpy(true_target).unsqueeze(-1)
 
-    flow.train_x = flow.x[splits_id != test_idx].to(device)
+    flow.train_x = flow.x[splits_id != test_idx]
+    #radomize
+    # num_pataients, num_node, dim=flow.train_x.shape
+    flow.train_x[:,target_index,0] = 0
+    flow.train_x = flow.train_x.to(device)
     flow.train_y = flow.y[splits_id != test_idx].to(device)
     flow.train_class = class_patients[splits_id != test_idx]
 
@@ -115,35 +125,44 @@ def train_R_score(flow, train_pred):
     cancer_true = flow.train_y[flow.train_class == 1].cpu().data.numpy().reshape(-1)
     return r2_score(free_true, free_pred), r2_score(cancer_true, cancer_pred)
 
-def test_R_score(test_pred, target):
+def test_R_score(test_pred, target, train):
     # compute the R_score in train set
-    target = target
-    free_pred = test_pred[class_patients == 0].reshape(-1)
-    cancer_pred = test_pred[class_patients== 1].reshape(-1)
-    free_true = target[class_patients == 0].reshape(-1)
-    cancer_true = target[class_patients == 1].reshape(-1)
-    return r2_score(free_true, free_pred), r2_score(cancer_true, cancer_pred)
+    if train:
+        return r2_score(target.cpu().data.numpy().reshape(-1), test_pred.cpu().data.numpy().reshape(-1))
+    else:
+        target = target
+        free_pred = test_pred[class_patients == 0].reshape(-1)
+        cancer_pred = test_pred[class_patients== 1].reshape(-1)
+        free_true = target[class_patients == 0].reshape(-1)
+        cancer_true = target[class_patients == 1].reshape(-1)
+        return r2_score(free_true, free_pred), r2_score(cancer_true, cancer_pred)
 
 
 def test(dataflow):
     model.eval()
     pred = model(dataflow.test_x.float().to(device), dataflow.dataflow)
     loss = criterion(pred, dataflow.test_y.float().to(device))
-    return pred, loss.item()
+    score = test_R_score(pred, dataflow.test_y.float().to(device), True)
+    return pred, loss.item(), score
 
 # start to training
 # Here, we only do test example on `ABL1`
 def train(dataflow):
+    x = dataflow.train_x.float().to(device)
+    y = dataflow.train_y.float().to(device)
     for epoch in range(5000):
         model.train()
         optimizer.zero_grad()
-        pred = model(dataflow.train_x.float().to(device), dataflow.dataflow)
-        loss = criterion(pred, dataflow.train_y.float().to(device))
-        R_score = "Free R^2 score {} Cancer R^2 score {}".format(*train_R_score(dataflow, pred))
+        pred = model(x, dataflow.dataflow)
+        loss = criterion(pred, y)
+        R_score = "Free R^2 score {:.2f} Cancer R^2 score {:.2f} Test score".format(*train_R_score(dataflow, pred))
         loss.backward()
         optimizer.step()
-        test_pred, test_loss = test(dataflow)
-        print("Epoch {} : Train Loss {} Test Loss {} {}".format(epoch + 1, loss.item(), test_loss, R_score))
+        test_pred, test_loss, score = test(dataflow)
+        print("Epoch {} : Train Loss {:.6f} Test Loss {:.6f} {} Test_score {:.2f}".format(epoch + 1, loss.item(),
+                                                                        test_loss, R_score, score))
+        del pred, loss, test_loss, score
+        torch.cuda.empty_cache()
     return test_pred
 
 
@@ -155,8 +174,7 @@ for idx in range(cv):
 
     test_pred = train(flow).cpu().data.numpy()
     test_pred_all[splits_id == idx] = test_pred.reshape(-1)
-
-print("Across all {} folds, the overall R^2 score is \n\tFree {} Cancer {}".format(cv, *test_R_score(test_pred_all, flow.true_target)))
+print("Across all {} folds, the overall R^2 score is \n\tFree {} Cancer {}".format(cv, *test_R_score(test_pred_all, flow.true_target, False)))
 
 
 import matplotlib.pyplot as plt

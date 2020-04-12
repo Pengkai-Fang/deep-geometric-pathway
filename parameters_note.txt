@@ -1,0 +1,42 @@
+parameter modification note
+
+GAT
+
+1. 
+	4 layer(2 global 2 inducitve) lr=0.01 cv=5
+	layer1(1 --> 4(head=4))
+	layer2(16 --> 64(head=4))
+	layer3(256 --> 18(head=18))
+	layer4(18*18 --> 1)
+	results: loss 0.0082 score 0.38
+	
+
+
+2. 
+	4 layer(2 global 2 inducitve) lr=0.01 cv=5
+	layer1(1 --> 16(head=1))
+	layer2(16 --> 64(head=1))
+	layer3(64 --> 18(head=18))
+	layer4(18*18 --> 1)
+	results: loss 0.0072 score 0.41
+
+
+TODO
+
+
+SAGE
+
+1.
+	4 layer(2 global 2 inducitve) lr=0.01 cv=5
+	layer1(1 --> 16)
+	layer2(16 --> 32)
+	layer3(32 --> 64)
+	layer4(64 --> 1)
+	results: loss 0.0072 score 0.41
+
+
+
+
+
+1. Add GraphEdge test
+2. Only sample the protein
