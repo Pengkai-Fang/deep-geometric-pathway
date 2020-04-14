@@ -3,7 +3,6 @@ import utils.cancer_data as cancer_data
 import torch.nn as nn
 from model.sage_conv import SAGEConv
 import torch.nn.functional as F
-from torch_geometric.nn import Node2Vec
 import torch
 import numpy as np
 from torch import optim
@@ -30,8 +29,18 @@ class SageNet(nn.Module):
 
         self.conv1 = SAGEConv(in_channels, 6, normalize=True, concat=concat, node_dim=1)
         self.conv2 = SAGEConv(6, 36, normalize=True, concat=concat, node_dim=1)
-        self.conv3 = SAGEConv(36, 216, normalize=False, concat=False, node_dim=1)
-        self.conv4 = SAGEConv(216, out_channels, normalize=False, concat=False, node_dim=1)
+        self.conv3 = SAGEConv(36, 64, normalize=True, concat=concat, node_dim=1)
+
+        self.lin1 = nn.Sequential(
+            nn.Linear(64*77, 1024),
+            nn.ReLU(True),
+            nn.Linear(1024, 218),
+            nn.ReLU(True),
+            nn.Linear(218, out_channels)
+        )
+
+        # self.conv3 = SAGEConv(36, 216, normalize=False, concat=False, node_dim=1)
+        # self.conv4 = SAGEConv(216, out_channels, normalize=False, concat=False, node_dim=1)
 
     def forward(self, x, dataflow):
         block = dataflow[0]
@@ -43,19 +52,26 @@ class SageNet(nn.Module):
         xt = F.relu(
             self.conv2(xt, block.edge_index)
         )
-        # xt = F.dropout(xt, p=0.5, training=self.training)
-        block = dataflow[1]
         xt = F.relu(
-            self.conv3((xt, None),
-                       block.edge_index,
-                       size=block.size,
-                       res_n_id = block.res_n_id))
+            self.conv3(xt, block.edge_index)
+        )
+        xt = xt.view(xt.shape[0],-1)
+        xt = self.lin1(xt)
+
         # xt = F.dropout(xt, p=0.5, training=self.training)
-        block = dataflow[2]
-        xt = self.conv4((xt, None),
-                        block.edge_index,
-                        size=block.size,
-                        res_n_id = block.res_n_id)
+        # block = dataflow[1]
+        # xt = F.relu(
+        #     self.conv3((xt, None),
+        #                block.edge_index,
+        #                size=block.size,
+        #                res_n_id = block.res_n_id))
+        # # xt = F.dropout(xt, p=0.5, training=self.training)
+        # block = dataflow[2]
+        # xt = self.conv4((xt, None),
+        #                 block.edge_index,
+        #                 size=block.size,
+        #                 res_n_id = block.res_n_id)
+
         return xt
 
 
@@ -145,7 +161,7 @@ def test_R_score(test_pred, target, train):
 
 def test(dataflow):
     model.eval()
-    pred = model(dataflow.test_x.float().to(device), dataflow.dataflow)
+    pred = model(dataflow.test_x.float().to(device), dataflow.dataflow).unsqueeze(-1)
     loss = criterion(pred, dataflow.test_y.float().to(device))
     score = test_R_score(pred, dataflow.test_y.float().to(device), True)
     return pred, loss.item(), score
@@ -158,7 +174,7 @@ def train(dataflow):
     for epoch in range(5000):
         model.train()
         optimizer.zero_grad()
-        pred = model(x, dataflow.dataflow)
+        pred = model(x, dataflow.dataflow).unsqueeze(-1)
         loss = criterion(pred, y)
         R_score = "Free R^2 score {:.2f} Cancer R^2 score {:.2f} Test score".format(*train_R_score(dataflow, pred))
         loss.backward()

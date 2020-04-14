@@ -4,6 +4,7 @@ import pandas as pd
 from torch_geometric.data import Data
 from sklearn.preprocessing import LabelEncoder
 import torch
+from .selfLoop_utils import remove_selfLoop
 
 class hops_sampler(object):
     """
@@ -17,9 +18,10 @@ class hops_sampler(object):
     Return: `hops_samples`: the loader of sub-graph
     
     """
-    def __init__(self, pathway, num_hops, batch_size, least_size=5, label_all=False):
+    def __init__(self, pathway, num_hops, batch_size, least_size=5, label_all=False, keep_type=None):
         self.data = pathway
         self.num_hops = num_hops
+        self.keep_type = keep_type
         self.batch_size = batch_size
         self.least_size = least_size
         self.hops_samples = []
@@ -31,10 +33,12 @@ class hops_sampler(object):
         # From here, extract the remained graph based on batached_node_id-list
         le = LabelEncoder()
         le.fit(self.data.remained_protein)
-        
-        if label_all:
-            for sub_batch in self.batched_node_list:
-                self.hops_samples.append(self.sampler_generater(sub_batch, le))
+
+
+        # This part is currently deprecated
+        # if label_all:
+        #     for sub_batch in self.batched_node_list:
+        #         self.hops_samples.append(self.sampler_generater(sub_batch, le))
         
     def _setup(self):
         # Create deep_geometric data object
@@ -99,8 +103,7 @@ class hops_sampler(object):
             temp = batch.numpy()
             subset.dataflow = []
             subset.edge_index_t = []
-            # Get the edge_index layer by layer
-            # Test on 1 more hops everytimes
+            # step 2 - Get the edge_index layer by layer
             for num in range(self.num_hops):
                 subset.this_batch_ids = np.hstack([subset.this_batch_ids, self.node_i[np.in1d(self.node_j, subset.this_batch_ids)]])
                 edge_indice = np.in1d(self.node_j, temp)
@@ -114,6 +117,16 @@ class hops_sampler(object):
 
             subset.edge_index_t = subset.edge_index_t[::-1]
 
+            # step 3 - in the condition that skip some links
+            if self.keep_type:
+                temp_subset_edge = []
+                for temp_edge in subset.edge_index_t:
+                    edge_rtr = self._skplink(temp_edge)
+                    temp_subset_edge.append(edge_rtr)
+                subset.edge_index_t = temp_subset_edge
+                del temp_subset_edge
+
+            # step 4 - obtain the overall propagation, which is designed for transducive learning
             #-------------------------------------------------
             # overall propagation
             #-------------------------------------------------
@@ -128,6 +141,7 @@ class hops_sampler(object):
             subset.dataflow.append(block)
             #-------------------DONE overall propagation-------------
 
+            # step 5 - obtain the data for inductive learning, layer by layer
             for idx, elem in enumerate(subset.edge_index_t):
                 block = Data()
                 # Assign original edge_index
@@ -149,60 +163,142 @@ class hops_sampler(object):
             self.batched_node_list.append(subset.this_batch_ids)
             subset.size_list = [len(obj.n_id) for obj in subset.dataflow]
             subset.size_list.append(len(subset.dataflow[-1].res_n_id))
-            subset.property = ("DataFlow({}".format("{} -> "*(self.num_hops)) + "{})").format(*subset.size_list)
+            subset.property = ("DataFlow({}".format("{} -> "*(self.num_hops+1)) + "{})").format(*subset.size_list)
             self.samples.append(subset)
-        
-    def sampler_generater(self, batch, le):
+
+
+    def _skplink(self, glb_edge_idx):
         """
-        This function passes batch index number to obtained trained object
+        This private function with __func1, __func2, __func3 are combined with a function that does skip the node type
+        that was defined as unwanted for variable input `keep_type`
+
+        This function will generate a new `self.glb_edge_idx` that without any self Loop. The further loop/no loop may/may
+        not required.
         """
-        deep_pthway = Data()
-        deep_pthway.batch = batch
-        
-        # find out the edge_index of original pathway index
-        row, col = self.edge_index
-        row = list(row)
-        col = list(col)
-        exclude_list = []
-        for idx, (a, b) in enumerate(zip(row,col)):
-            if ((a not in list(batch)) or (b not in list(batch))):
-                exclude_list.append(idx)
-        deep_pthway.edge_index_oriIndexxed = np.delete(self.edge_index, exclude_list, 1)
-        
-        newpthway_Namelist = self.data.pthway_NameList.iloc[batch,:].reset_index(drop=True)
-        deep_pthway.genome_Namelist = newpthway_Namelist[newpthway_Namelist['GenomeType'] == 'protein']['GenomeName'].values
-        activ_id = le.transform(deep_pthway.genome_Namelist)
-        deep_pthway.activ_free = self.data.activ_free[activ_id]
-        deep_pthway.activ_cancer = self.data.activ_cancer[activ_id]
-        
-        deep_pthway.pth_Namelist = newpthway_Namelist
-        Edgelist = self.data.Edgelist
-        Namelist_l = list(newpthway_Namelist['GenomeName'].values)
-        Edgelist_l = list(Edgelist.iloc[:,0].values)
-        Edgelist_ll = list(Edgelist.iloc[:,1].values)
-        exclude_list = []
-        for idx, (elem, elem2) in enumerate(zip(Edgelist_l, Edgelist_ll)):
-            if ((elem not in Namelist_l) or (elem2 not in Namelist_l)):
-                exclude_list.append(idx)
 
-        newpthway_Edgelist = Edgelist.drop(exclude_list).reset_index(drop=True)
-        deep_pthway.Edgelist = newpthway_Edgelist
 
-        le2 = LabelEncoder()
-        le2.fit(deep_pthway.pth_Namelist['GenomeName'].values)
-        deep_pthway.edge_index = le2.transform(deep_pthway.Edgelist.iloc[:,:2].values.reshape(-1)).reshape(-1,2)
-        deep_pthway.all_elem_className = list(le2.classes_)
+        # step 0 - ensure the keep_type to be np.array
+        if isinstance(self.keep_type, list):
+            self.keep_type = np.array(self.keep_type).astype(np.object)
 
-        # Label edge_class
-        le2 = LabelEncoder()
-        le2.fit(deep_pthway.Edgelist['edgeType'])
-        deep_pthway.edge_class = le2.transform(deep_pthway.Edgelist['edgeType'])
-        deep_pthway.edge_className = list(le2.classes_)
 
-        # Label node class
-        le2 = LabelEncoder()
-        le2.fit(deep_pthway.pth_Namelist['GenomeType'])
-        deep_pthway.node_class = le2.transform(deep_pthway.pth_Namelist['GenomeType'])
-        deep_pthway.node_className = list(le2.classes_) 
-        
-        return deep_pthway
+        # step 1 - Get the unwanted node index
+        #self.glb_edge_idx = remove_selfLoop(glb_edge_idx)
+        self.glb_edge_idx = glb_edge_idx
+        self.nii, self.njj = self.glb_edge_idx
+        glb_node_idx = np.unique(self.glb_edge_idx)
+        kept_TrFl = np.in1d(self.data.pthway_NameList.iloc[glb_node_idx]['GenomeType'].values, self.keep_type)
+
+        del_index_list = glb_node_idx[~kept_TrFl]
+
+        # step 2 - start to construct new link
+        for k in del_index_list:
+            source_list = np.setdiff1d(self.nii[self.njj == k], k)
+            target_list = np.setdiff1d(self.njj[self.nii == k], k)
+
+            if ((len(source_list) == 0) or (len(target_list) == 0)):
+                continue
+            else:
+                self.__func3(source_list, target_list, depth=0)
+
+        # step 3 - start to unlink/remove unwanted link
+        tf1, tf2 = np.isin(self.glb_edge_idx, glb_node_idx[kept_TrFl])
+        self.glb_edge_idx = self.glb_edge_idx[:,(tf1 & tf2)]
+
+        # step done - remove some objects
+        del self.nii, self.njj
+
+        return self.glb_edge_idx
+
+
+
+    def __func1(self, m, target_list, depth):
+        if (depth > self.num_hops + 1):
+            return
+        for x in target_list:
+            self.__func2(m, x, depth+1)
+
+    def __func2(self, m, x, depth):
+        if self.data.pthway_NameList.iloc[x, :]['GenomeType'] in self.keep_type:
+            temp = np.array([m, x])[:,np.newaxis]
+            self.glb_edge_idx = np.concatenate([self.glb_edge_idx, temp], axis=1)
+            return
+        else:
+            sub_target_list = np.setdiff1d(self.njj[self.nii == x], x)
+            if (len(sub_target_list) == 0) or (depth > self.num_hops + 1):
+                return
+            else:
+                self.__func1(m, sub_target_list, depth+1)
+
+    def __func3(self, source_list, target_list, depth):
+        if (depth > self.num_hops + 1):
+            return
+
+        for m in source_list:
+            if self.data.pthway_NameList.iloc[m, :]['GenomeType'] in self.keep_type:
+                self.__func1(m, target_list, depth+1)
+            else:
+                sub_source_list = np.setdiff1d(self.nii[self.njj == m], m)
+                if len(sub_source_list) == 0:
+                    continue
+                else:
+                    self.__func3(sub_source_list, target_list, depth+1)
+
+
+    ## *************************************
+    ## This function is currently deperacted
+    ## *************************************
+    # def sampler_generater(self, batch, le):
+    #     """
+    #     This function passes batch index number to obtained trained object
+    #     """
+    #     deep_pthway = Data()
+    #     deep_pthway.batch = batch
+    #
+    #     # find out the edge_index of original pathway index
+    #     row, col = self.edge_index
+    #     row = list(row)
+    #     col = list(col)
+    #     exclude_list = []
+    #     for idx, (a, b) in enumerate(zip(row,col)):
+    #         if ((a not in list(batch)) or (b not in list(batch))):
+    #             exclude_list.append(idx)
+    #     deep_pthway.edge_index_oriIndexxed = np.delete(self.edge_index, exclude_list, 1)
+    #
+    #     newpthway_Namelist = self.data.pthway_NameList.iloc[batch,:].reset_index(drop=True)
+    #     deep_pthway.genome_Namelist = newpthway_Namelist[newpthway_Namelist['GenomeType'] == 'protein']['GenomeName'].values
+    #     activ_id = le.transform(deep_pthway.genome_Namelist)
+    #     deep_pthway.activ_free = self.data.activ_free[activ_id]
+    #     deep_pthway.activ_cancer = self.data.activ_cancer[activ_id]
+    #
+    #     deep_pthway.pth_Namelist = newpthway_Namelist
+    #     Edgelist = self.data.Edgelist
+    #     Namelist_l = list(newpthway_Namelist['GenomeName'].values)
+    #     Edgelist_l = list(Edgelist.iloc[:,0].values)
+    #     Edgelist_ll = list(Edgelist.iloc[:,1].values)
+    #     exclude_list = []
+    #     for idx, (elem, elem2) in enumerate(zip(Edgelist_l, Edgelist_ll)):
+    #         if ((elem not in Namelist_l) or (elem2 not in Namelist_l)):
+    #             exclude_list.append(idx)
+    #
+    #     newpthway_Edgelist = Edgelist.drop(exclude_list).reset_index(drop=True)
+    #     deep_pthway.Edgelist = newpthway_Edgelist
+    #
+    #     le2 = LabelEncoder()
+    #     le2.fit(deep_pthway.pth_Namelist['GenomeName'].values)
+    #     deep_pthway.edge_index = le2.transform(deep_pthway.Edgelist.iloc[:,:2].values.reshape(-1)).reshape(-1,2)
+    #     deep_pthway.all_elem_className = list(le2.classes_)
+    #
+    #     # Label edge_class
+    #     le2 = LabelEncoder()
+    #     le2.fit(deep_pthway.Edgelist['edgeType'])
+    #     deep_pthway.edge_class = le2.transform(deep_pthway.Edgelist['edgeType'])
+    #     deep_pthway.edge_className = list(le2.classes_)
+    #
+    #     # Label node class
+    #     le2 = LabelEncoder()
+    #     le2.fit(deep_pthway.pth_Namelist['GenomeType'])
+    #     deep_pthway.node_class = le2.transform(deep_pthway.pth_Namelist['GenomeType'])
+    #     deep_pthway.node_className = list(le2.classes_)
+    #
+    #     return deep_pthway
