@@ -21,9 +21,6 @@ GAT
 	results: loss 0.0072 score 0.41
 
 
-TODO
-
-
 SAGE
 
 1.
@@ -77,12 +74,48 @@ SAGE
 	results: loss 0.0026, score 0.66
 
 
+
+SAGE + only sample and reconstruct the pathway based on the protein info
+
+1. Transducive
+        self.num_nodes = num_nodes
+        self.conv1 = SAGEConv(in_channels, 6, normalize=True, concat=concat, node_dim=1)
+        self.conv2 = SAGEConv(6, 36, normalize=True, concat=concat, node_dim=1)
+        self.conv3 = SAGEConv(36, 64, normalize=True, concat=concat, node_dim=1)
+
+        self.lin1 = nn.Sequential(
+            nn.Linear(64*self.num_nodes, 1024),
+            nn.ReLU(True),
+            nn.Linear(1024, 218),
+            nn.ReLU(True),
+            nn.Linear(218, out_channels)
+        )
+	no dropout smoothL1Loss
+	resulsts: loss 0.002764, score 0.53
+
+
+
+Got the general idea for now, SAGE is better than GAT
+So, now try on SAGE only
+
+SAGE - inductive w/ skip path(only use protein)
+
+1.
+	self.conv1 = SAGEConv(in_channels, 64, normalize=True, concat=concat, node_dim=1)
+        self.conv2 = SAGEConv(64, 128, normalize=True, concat=concat, node_dim=1)
+        self.conv3 = SAGEConv(128, 256, normalize=False, concat=False, node_dim=1)
+        self.conv4 = SAGEConv(256, out_channels, normalize=False, concat=False, node_dim=1)
+	no dropout, smoothL1Loss
+	results: loss: 0.003267 score 0.53 epoch 320 
+
+
+
+
+
+
+TODO
 1. ~~Add GraphEdge test~~ (DONE)
 2. Only sample the protein
 3. Try smoothL1loss **(WORK)**/ ~L1loss~(NOT WORK)
 4. ~Without inductive learning~(DONE) better
-
-11037
-  |  10450 - 11309
-		| 10450 - 11307
     

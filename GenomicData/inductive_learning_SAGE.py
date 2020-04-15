@@ -1,7 +1,7 @@
 import utils.hops_sampler as hops_sampler
 import utils.cancer_data as cancer_data
 import torch.nn as nn
-from model.gat_conv import GATConv
+from model.sage_conv import SAGEConv
 import torch.nn.functional as F
 from torch_geometric.nn import Node2Vec
 import torch
@@ -24,14 +24,14 @@ hops_samples_obj = hops_sampler.hops_sampler(pathway=data,
                                              num_hops=2)
 
 
-class GATNet(nn.Module):
-    def __init__(self, in_channels, out_channels):
-        super(GATNet, self).__init__()
+class SageNet(nn.Module):
+    def __init__(self, in_channels, out_channels, concat=True):
+        super(SageNet, self).__init__()
 
-        self.conv1 = GATConv(in_channels, 16, heads=1, node_dim=1)
-        self.conv2 = GATConv(16, 32, heads=1, node_dim=1)
-        self.conv3 = GATConv(32, 128, heads=12, node_dim=1)
-        self.conv4 = GATConv(128*12, out_channels, heads=1, node_dim=1, concat=True)
+        self.conv1 = SAGEConv(in_channels, 6, normalize=True, concat=concat, node_dim=1)
+        self.conv2 = SAGEConv(6, 36, normalize=True, concat=concat, node_dim=1)
+        self.conv3 = SAGEConv(36, 216, normalize=False, concat=False, node_dim=1)
+        self.conv4 = SAGEConv(216, out_channels, normalize=False, concat=False, node_dim=1)
 
     def forward(self, x, dataflow):
         block = dataflow[0]
@@ -39,19 +39,23 @@ class GATNet(nn.Module):
         xt = F.relu(
             self.conv1(xt, block.edge_index)
         )
+        # xt = F.dropout(xt, p=0.5, training=self.training)
         xt = F.relu(
             self.conv2(xt, block.edge_index)
         )
+        # xt = F.dropout(xt, p=0.5, training=self.training)
         block = dataflow[1]
         xt = F.relu(
-            self.conv3((xt, xt[:, block.res_n_id, :]),
+            self.conv3((xt, None),
                        block.edge_index,
-                       size=block.size))
-
+                       size=block.size,
+                       res_n_id = block.res_n_id))
+        # xt = F.dropout(xt, p=0.5, training=self.training)
         block = dataflow[2]
-        xt = self.conv4((xt, xt[:, block.res_n_id, :]),
+        xt = self.conv4((xt, None),
                         block.edge_index,
-                        size=block.size)
+                        size=block.size,
+                        res_n_id = block.res_n_id)
         return xt
 
 
@@ -73,9 +77,6 @@ cancer_x_patient_all = scatter(num_nodes, cancer_x_patient, genome_idxs, pre_emb
 
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-model = GATNet(1, 1).to(device)
-criterion = nn.MSELoss()
-optimizer = optim.Adam(model.parameters(), lr=0.01)
 
 # define the permutation here
 all_patients  = np.concatenate([free_x_patient_all, cancer_x_patient_all], axis=0)
@@ -87,7 +88,7 @@ all_patients, class_patients = all_patients[permutation_idx], class_patients[per
 edge_index = torch.from_numpy(hops_samples_obj.edge_index).long().to(device)
 
 # generate cv
-cv = 5
+cv = 8
 splits_id = np.hstack([np.hstack([np.arange(cv)]*int(np.floor(all_patients.shape[0] / cv))),
                        np.arange(int(np.floor(all_patients.shape[0] % cv)))])
 
@@ -168,12 +169,17 @@ def train(dataflow):
 
 test_pred_all = np.zeros(all_patients.shape[0])
 for idx in range(cv):
-# acquire the data
+    # acquire the data
+    model = SageNet(1, 1).to(device)
+    criterion = nn.SmoothL1Loss()
+    optimizer = optim.Adam(model.parameters(), lr=0.01)
     flow = data_splits(hops_samples_obj.samples, 0,
                        idx, splits_id, all_patients, class_patients).to(device)
-
+    model.reset_parameters()
     test_pred = train(flow).cpu().data.numpy()
     test_pred_all[splits_id == idx] = test_pred.reshape(-1)
+    del model, criterion, optimizer
+    torch.cuda.empty_cache()
 print("Across all {} folds, the overall R^2 score is \n\tFree {} Cancer {}".format(cv, *test_R_score(test_pred_all, flow.true_target, False)))
 
 
@@ -192,6 +198,5 @@ plt.title(data.pthway_NameList.iloc[flow.target,:]['GenomeName'].values)
 plt.xlabel('The truth ground')
 plt.ylabel('The LASSO prediction')
 plt.show()
-
 
 

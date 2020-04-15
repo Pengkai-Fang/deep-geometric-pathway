@@ -3,7 +3,6 @@ import utils.cancer_data as cancer_data
 import torch.nn as nn
 from model.sage_conv import SAGEConv
 import torch.nn.functional as F
-from torch_geometric.nn import Node2Vec
 import torch
 import numpy as np
 from torch import optim
@@ -21,17 +20,27 @@ data = cancer_data.cancer_data(pthwayPATH=pathwayPATH, cancerPATH=cancerPATH)
 # sample the protein for the regression problem
 hops_samples_obj = hops_sampler.hops_sampler(pathway=data,
                                              batch_size=1,
-                                             num_hops=2)
-
+                                             num_hops=2,
+                                             keep_type=['protein'])
 
 class SageNet(nn.Module):
-    def __init__(self, in_channels, out_channels, concat=True):
+    def __init__(self, in_channels, out_channels, num_nodes, concat=True,):
         super(SageNet, self).__init__()
-
+        self.num_nodes = num_nodes
         self.conv1 = SAGEConv(in_channels, 6, normalize=True, concat=concat, node_dim=1)
         self.conv2 = SAGEConv(6, 36, normalize=True, concat=concat, node_dim=1)
-        self.conv3 = SAGEConv(36, 216, normalize=False, concat=False, node_dim=1)
-        self.conv4 = SAGEConv(216, out_channels, normalize=False, concat=False, node_dim=1)
+        self.conv3 = SAGEConv(36, 64, normalize=True, concat=concat, node_dim=1)
+
+        self.lin1 = nn.Sequential(
+            nn.Linear(64*self.num_nodes, 1024),
+            nn.ReLU(True),
+            nn.Linear(1024, 218),
+            nn.ReLU(True),
+            nn.Linear(218, out_channels)
+        )
+
+        # self.conv3 = SAGEConv(36, 216, normalize=False, concat=False, node_dim=1)
+        # self.conv4 = SAGEConv(216, out_channels, normalize=False, concat=False, node_dim=1)
 
     def forward(self, x, dataflow):
         block = dataflow[0]
@@ -43,19 +52,26 @@ class SageNet(nn.Module):
         xt = F.relu(
             self.conv2(xt, block.edge_index)
         )
-        # xt = F.dropout(xt, p=0.5, training=self.training)
-        block = dataflow[1]
         xt = F.relu(
-            self.conv3((xt, None),
-                       block.edge_index,
-                       size=block.size,
-                       res_n_id = block.res_n_id))
+            self.conv3(xt, block.edge_index)
+        )
+        xt = xt.view(xt.shape[0],-1)
+        xt = self.lin1(xt)
+
         # xt = F.dropout(xt, p=0.5, training=self.training)
-        block = dataflow[2]
-        xt = self.conv4((xt, None),
-                        block.edge_index,
-                        size=block.size,
-                        res_n_id = block.res_n_id)
+        # block = dataflow[1]
+        # xt = F.relu(
+        #     self.conv3((xt, None),
+        #                block.edge_index,
+        #                size=block.size,
+        #                res_n_id = block.res_n_id))
+        # # xt = F.dropout(xt, p=0.5, training=self.training)
+        # block = dataflow[2]
+        # xt = self.conv4((xt, None),
+        #                 block.edge_index,
+        #                 size=block.size,
+        #                 res_n_id = block.res_n_id)
+
         return xt
 
 
@@ -77,10 +93,6 @@ cancer_x_patient_all = scatter(num_nodes, cancer_x_patient, genome_idxs, pre_emb
 
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-model = SageNet(1, 1).to(device)
-# criterion = nn.MSELoss()
-criterion = nn.SmoothL1Loss()
-optimizer = optim.Adam(model.parameters(), lr=0.01)
 
 # define the permutation here
 all_patients  = np.concatenate([free_x_patient_all, cancer_x_patient_all], axis=0)
@@ -92,7 +104,7 @@ all_patients, class_patients = all_patients[permutation_idx], class_patients[per
 edge_index = torch.from_numpy(hops_samples_obj.edge_index).long().to(device)
 
 # generate cv
-cv = 5
+cv = 8
 splits_id = np.hstack([np.hstack([np.arange(cv)]*int(np.floor(all_patients.shape[0] / cv))),
                        np.arange(int(np.floor(all_patients.shape[0] % cv)))])
 
@@ -145,7 +157,7 @@ def test_R_score(test_pred, target, train):
 
 def test(dataflow):
     model.eval()
-    pred = model(dataflow.test_x.float().to(device), dataflow.dataflow)
+    pred = model(dataflow.test_x.float().to(device), dataflow.dataflow).unsqueeze(-1)
     loss = criterion(pred, dataflow.test_y.float().to(device))
     score = test_R_score(pred, dataflow.test_y.float().to(device), True)
     return pred, loss.item(), score
@@ -155,10 +167,10 @@ def test(dataflow):
 def train(dataflow):
     x = dataflow.train_x.float().to(device)
     y = dataflow.train_y.float().to(device)
-    for epoch in range(5000):
+    for epoch in range(140):
         model.train()
         optimizer.zero_grad()
-        pred = model(x, dataflow.dataflow)
+        pred = model(x, dataflow.dataflow).unsqueeze(-1)
         loss = criterion(pred, y)
         R_score = "Free R^2 score {:.2f} Cancer R^2 score {:.2f} Test score".format(*train_R_score(dataflow, pred))
         loss.backward()
@@ -173,12 +185,18 @@ def train(dataflow):
 
 test_pred_all = np.zeros(all_patients.shape[0])
 for idx in range(cv):
-# acquire the data
+    # acquire the data
+    model = SageNet(1, 1, num_nodes=25).to(device)
+    criterion = nn.SmoothL1Loss()
+    optimizer = optim.Adam(model.parameters(), lr=0.002)
+
     flow = data_splits(hops_samples_obj.samples, 0,
                        idx, splits_id, all_patients, class_patients).to(device)
 
     test_pred = train(flow).cpu().data.numpy()
     test_pred_all[splits_id == idx] = test_pred.reshape(-1)
+    del model, criterion, optimizer
+    torch.cuda.empty_cache()
 print("Across all {} folds, the overall R^2 score is \n\tFree {} Cancer {}".format(cv, *test_R_score(test_pred_all, flow.true_target, False)))
 
 
@@ -197,6 +215,3 @@ plt.title(data.pthway_NameList.iloc[flow.target,:]['GenomeName'].values)
 plt.xlabel('The truth ground')
 plt.ylabel('The LASSO prediction')
 plt.show()
-
-
-
