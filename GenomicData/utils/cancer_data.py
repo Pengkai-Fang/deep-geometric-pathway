@@ -61,15 +61,15 @@ class cancer_data():
         self.geneNamelist = [np.array2string(self.geneNamelist[i]).replace("['",'').replace("']",'') for i in range(self.geneNamelist.size)]
         self.geneNamelist = np.array(self.geneNamelist).astype(np.object)
 
-        included_gene = np.in1d(self.geneNamelist, self.protein_list)
+        self.included_gene = np.in1d(self.geneNamelist, self.protein_list)
 
         # Get two input data in the end, 
         # TODO reshuffle required 
-        self.activ_free = self.activ_free[included_gene]
-        self.activ_cancer = self.activ_cancer[included_gene]
+        self.activ_free = self.activ_free[self.included_gene]
+        self.activ_cancer = self.activ_cancer[self.included_gene]
         
         # Here we get the new genenNamelist that only include the contained protein name
-        self.geneNamelist = self.geneNamelist[included_gene]
+        self.geneNamelist = self.geneNamelist[self.included_gene]
 
         included_protein = np.in1d(self.protein_list, self.geneNamelist)
 
@@ -92,10 +92,10 @@ class cancer_data():
         
     def _shuffle_w_construct(self):
         # shuffle the data to be the same order of both protein and genome
-        tracked_index = np.argsort(self.geneNamelist)
-        self.geneNamelist = self.geneNamelist[tracked_index]
-        self.activ_free = self.activ_free[tracked_index]
-        self.activ_cancer = self.activ_cancer[tracked_index]
+        self.tracked_index = np.argsort(self.geneNamelist)
+        self.geneNamelist = self.geneNamelist[self.tracked_index]
+        self.activ_free = self.activ_free[self.tracked_index]
+        self.activ_cancer = self.activ_cancer[self.tracked_index]
         
         # reconstruct nodeset
         self.remained_protein = np.sort(self.remained_protein)
