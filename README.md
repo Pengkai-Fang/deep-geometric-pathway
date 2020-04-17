@@ -3,11 +3,25 @@
 ## Genomic graph-learning LOG
 
 
+
+#### April 17th
+
+1. Add GraphSAGE training model
+2. Add transductive learning layer to global update
+3. Two options on training model
+   * Transductive first then add inductive learning 
+   * Only use transductive and combined with liear layer
+4. `hops_sampler` is able to handle the skip the link, the example `skip_link_*_learning.py` has the detail of how to use it. In brief, our sampler can ignore some types of nodes/genomes but still keep the link on it instead of dropping it.
+5. Add `mode_parameter.txt` to record the performance of each model
+6. Add `mutation_analysis.mut_loader` class to load the mutation matrix and then convert to the same size as the activity level feature matirx 
+7. Add `mutation_analysis.mut_analyze` function and related function to get the printed out the most affected genomes
+
+
 #### **TODO**
 
 1. ~~Figure out the same input for LASSO, check out the result~~
 2. ~~Modify the model~~
-3. Try modify the GraphSAGE, and try the results
+3. ~~Try modify the GraphSAGE, and try the results~~
 
 
 #### April 1th-5th
