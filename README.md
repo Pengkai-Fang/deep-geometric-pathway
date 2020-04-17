@@ -15,7 +15,7 @@
 5. Add `mode_parameter.txt` to record the performance of each model
 6. Add `mutation_analysis.mut_loader` class to load the mutation matrix and then convert to the same size as the activity level feature matirx 
 7. Add `mutation_analysis.mut_analyze` function and related function to get the printed out the most affected genomes
-
+8. Some other minor changes and improvements 
 
 #### **TODO**
 
