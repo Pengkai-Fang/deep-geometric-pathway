@@ -7,7 +7,8 @@ import torch
 import numpy as np
 from torch import optim
 from model.scatter import scatter
-from sklearn.metrics import r2_score
+from utils.score_w_splits import data_splits, test_R_score, train_R_score
+import matplotlib.pyplot as plt
 
 # Load both data and operate by class pathway
 pathwayPATH = './Gene_DATA/sourcePathway.txt'
@@ -112,57 +113,11 @@ splits_id = np.hstack([np.hstack([np.arange(cv)]*int(np.floor(all_patients.shape
                        np.arange(int(np.floor(all_patients.shape[0] % cv)))])
 
 
-def data_splits(samples, idx, test_idx, splits_id, all_patients, class_patients):
-    #extract the specific flow
-    assert test_idx <= np.max(splits_id)
-
-    flow = samples[idx]
-    target_index = flow.target
-    true_target = all_patients[:, target_index, 0]
-    flow.true_target = true_target
-    flow.x = torch.from_numpy(all_patients)
-    flow.y = torch.from_numpy(true_target).unsqueeze(-1)
-
-    flow.train_x = flow.x[splits_id != test_idx]
-    #radomize
-    # num_pataients, num_node, dim=flow.train_x.shape
-    flow.train_x[:,target_index,0] = 0
-    flow.train_x = flow.train_x.to(device)
-    flow.train_y = flow.y[splits_id != test_idx].to(device)
-    flow.train_class = class_patients[splits_id != test_idx]
-
-    flow.test_x = flow.x[splits_id == test_idx].to(device)
-    flow.test_y = flow.y[splits_id == test_idx].to(device)
-    flow.test_class = class_patients[splits_id == test_idx]
-
-    return flow
-
-def train_R_score(flow, train_pred):
-    # compute the R_score in train set
-    free_pred = train_pred[flow.train_class == 0].cpu().data.numpy().reshape(-1)
-    cancer_pred = train_pred[flow.train_class == 1].cpu().data.numpy().reshape(-1)
-    free_true = flow.train_y[flow.train_class == 0].cpu().data.numpy().reshape(-1)
-    cancer_true = flow.train_y[flow.train_class == 1].cpu().data.numpy().reshape(-1)
-    return r2_score(free_true, free_pred), r2_score(cancer_true, cancer_pred)
-
-def test_R_score(test_pred, target, train):
-    # compute the R_score in train set
-    if train:
-        return r2_score(target.cpu().data.numpy().reshape(-1), test_pred.cpu().data.numpy().reshape(-1))
-    else:
-        target = target
-        free_pred = test_pred[class_patients == 0].reshape(-1)
-        cancer_pred = test_pred[class_patients== 1].reshape(-1)
-        free_true = target[class_patients == 0].reshape(-1)
-        cancer_true = target[class_patients == 1].reshape(-1)
-        return r2_score(free_true, free_pred), r2_score(cancer_true, cancer_pred)
-
-
 def test(dataflow):
     model.eval()
     pred = model(dataflow.test_x.float().to(device), dataflow.dataflow).unsqueeze(-1)
     loss = criterion(pred, dataflow.test_y.float().to(device))
-    score = test_R_score(pred, dataflow.test_y.float().to(device), True)
+    score = test_R_score(pred, dataflow.test_y.float().to(device), True, class_patients)
     return pred, loss.item(), score
 
 # start to training
@@ -175,7 +130,7 @@ def train(dataflow):
         optimizer.zero_grad()
         pred = model(x, dataflow.dataflow).unsqueeze(-1)
         loss = criterion(pred, y)
-        R_score = "Free R^2 score {:.2f} Cancer R^2 score {:.2f} Test score".format(*train_R_score(dataflow, pred))
+        R_score = "Free R^2 score {:.2f} Cancer R^2 score {:.2f} ".format(*train_R_score(dataflow, pred))
         loss.backward()
         optimizer.step()
         test_pred, test_loss, score = test(dataflow)
@@ -199,10 +154,7 @@ for idx in range(cv):
     test_pred_all[splits_id == idx] = test_pred.reshape(-1)
     del model, criterion, optimizer
     torch.cuda.empty_cache()
-print("Across all {} folds, the overall R^2 score is \n\tFree {} Cancer {}".format(cv, *test_R_score(test_pred_all, flow.true_target, False)))
-
-
-import matplotlib.pyplot as plt
+print("Across all {} folds, the overall R^2 score is \n\tFree {} Cancer {}".format(cv, *test_R_score(test_pred_all, flow.true_target, False, class_patients)))
 
 plt.figure(figsize=(10,10))
 plt.scatter(flow.true_target[class_patients == 1].reshape(-1), test_pred_all[class_patients == 1].reshape(-1), s=5, c='r')
@@ -218,5 +170,5 @@ plt.xlabel('The truth ground')
 plt.ylabel('The LASSO prediction')
 plt.show()
 
-
-
+# step last - invert the permutation to match on the original input
+test_pred_all = test_pred_all[np.argsort(permutation_idx)]
