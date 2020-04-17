@@ -29,3 +29,10 @@ class mutation_Loader(object):
         self.mut_namelist = self.mut_namelist [tracked_index]
         self.mut_matrix  = self.mut_matrix [tracked_index]
         assert np.all(self.mut_namelist == self.cancerData_obj.geneNamelist)
+
+        # TODO make the mut_matrix have the all types genomes
+        genome_idxs = self.cancerData_obj.pthway_NameList[self.cancerData_obj.pthway_NameList['GenomeType'] == 'protein'].index
+        total_mut = np.empty((self.mut_matrix.shape[1], self.cancerData_obj.pthway_NameList.shape[0]))
+        total_mut[:] = np.nan
+        total_mut[:, genome_idxs] = self.mut_matrix.T
+        self.mut_matrix = total_mut

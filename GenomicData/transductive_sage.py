@@ -154,11 +154,16 @@ for idx in range(cv):
     test_pred_all[splits_id == idx] = test_pred.reshape(-1)
     del model, criterion, optimizer
     torch.cuda.empty_cache()
-print("Across all {} folds, the overall R^2 score is \n\tFree {} Cancer {}".format(cv, *test_R_score(test_pred_all, flow.true_target, False, class_patients)))
+
+# store the test score seperately
+score_free, score_cancer, free_loss, cancer_loss = test_R_score(test_pred_all, flow.true_target, False, class_patients)
+print("Across all {} folds, the overall R^2 score is \n\tFree {} Cancer {}".format(cv, score_free, score_cancer))
 
 plt.figure(figsize=(10,10))
-plt.scatter(flow.true_target[class_patients == 1].reshape(-1), test_pred_all[class_patients == 1].reshape(-1), s=5, c='r')
-plt.scatter(flow.true_target[class_patients == 0].reshape(-1), test_pred_all[class_patients == 0].reshape(-1), s=5, c='b')
+plt.scatter(flow.true_target[class_patients == 1].reshape(-1), test_pred_all[class_patients == 1].reshape(-1),
+            s=5, c='r', label='cancer R^2 = {:.4f} Loss = {:.4f}'.format(score_cancer, cancer_loss))
+plt.scatter(flow.true_target[class_patients == 0].reshape(-1), test_pred_all[class_patients == 0].reshape(-1),
+            s=5, c='b', label='free R^2 = {:.4f} Loss = {:.4f}'.format(score_free, free_loss))
 plt.legend(fontsize=13)
 # plot the criterion line
 temp = flow.true_target
@@ -172,3 +177,4 @@ plt.show()
 
 # step last - invert the permutation to match on the original input
 test_pred_all = test_pred_all[np.argsort(permutation_idx)]
+true_target = flow.true_target[np.argsort(permutation_idx)]
