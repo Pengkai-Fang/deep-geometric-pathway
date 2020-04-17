@@ -65,10 +65,28 @@ def mut_analyze(flow, activ_pred, true_target, mut_loader, cancer_data_obj):
     idx_store = np.hstack(idx_store)
     score_store = np.hstack(score_store)
 
-    # step 4 - scatter mean
+    # step 4 - scatter mean and sort the list
+    idx_store, score_store = scatter_mean(score_store, idx_store)
+    sorted_indice = np.argsort(score_store)
+    idx_store = idx_store[sorted_indice]
+    score_store = score_store[sorted_indice]
+
+    # step 5 - show the result
+    prt_str = "For test genome {}: \n\tThe most affected Genome is {} that has the highest inconsistency score {:.3f}" \
+              "\n\t The second affected Genome is {} that has the inconsistency score {:.3f}"
+    prt_str = prt_str.format(data.iloc[target_id]['GenomeName'].values,
+                             data.iloc[idx_store[0]]['GenomeName'].values,
+                             score_store[0], data.iloc[idx_store[1]]['GenomeName'].values,
+                             score_store[1])
+    print(prt_str)
 
 def scatter_mean(score, idx):
-    pass
+    idx_list = np.unique(idx)
+    scattered_score = np.zeros(idx_list.shape)
+    for i, elem in enumerate(idx_list):
+        scattered_score[i] = score[idx == elem].mean()
+
+    return idx_list, scattered_score
 
 def solve_alpha(num_layer):
     assert num_layer < 6
@@ -84,5 +102,5 @@ def solve_alpha(num_layer):
     return 0.5
 
 def inconsistent_score(pred, true):
-    pass
+    return np.abs(pred - true) / np.mean(np.abs(pred-true))
 
