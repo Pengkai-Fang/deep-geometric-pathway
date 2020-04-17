@@ -13,7 +13,7 @@
    * Only use transductive and combined with liear layer
 4. `hops_sampler` is able to handle the skip the link, the example `skip_link_*_learning.py` has the detail of how to use it. In brief, our sampler can ignore some types of nodes/genomes but still keep the link on it instead of dropping it.
 5. Add `mode_parameter.txt` to record the performance of each model
-6. Add `mutation_analysis.mut_loader` class to load the mutation matrix and then convert to the same size as the activity level feature matirx 
+6. Add `mutation_analysis.mut_loader` class to load the mutation matrix and then convert to the same size as the activity level feature matirx. See `./test_notebook/test.py` about the details.
 7. Add `mutation_analysis.mut_analyze` function and related function to get the printed out the most affected genomes
 8. Some other minor changes and improvements 
 
