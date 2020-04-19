@@ -92,7 +92,7 @@ free_x_patient_all = scatter(num_nodes, free_x_patient, genome_idxs, pre_embed_x
 cancer_x_patient_all = scatter(num_nodes, cancer_x_patient, genome_idxs, pre_embed_x)
 
 
-device = 'cpu' if torch.cuda.is_available() else 'cpu'
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
 model = SageNet(1, 1).to(device)
 # criterion = nn.MSELoss()
 criterion = nn.SmoothL1Loss()
@@ -125,7 +125,7 @@ def test(dataflow):
 def train(dataflow):
     x = dataflow.train_x.float().to(device)
     y = dataflow.train_y.float().to(device)
-    for epoch in range(500):
+    for epoch in range(165):
         model.train()
         optimizer.zero_grad()
         pred = model(x, dataflow.dataflow).unsqueeze(-1)
